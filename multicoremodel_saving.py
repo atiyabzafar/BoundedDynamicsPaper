@@ -7,7 +7,7 @@ import multiprocessing
 import csv
 
 # ---------------------------------------------------------
-# Solver Functions
+# Solver And Helper Functions (DO NOT EDIT)
 # ---------------------------------------------------------
 
 def normalize_population(y, eps=1e-12):
@@ -89,19 +89,9 @@ def count_survivors(y, threshold=1e-6):
     y = np.asarray(y, dtype=float)
     return int(np.sum(y > threshold))
 
-def safe_effective_diversity(y, threshold=1e-6):
-    """
-    Inspired from entroy effective diversity
-    """
-    y_safe = np.asarray(y, dtype=float)
-    y_surv = y_safe[y_safe > threshold]
-    if len(y_surv) == 0:
-        return 0.0
-    p = y_surv / np.sum(y_surv)
-    return np.exp(-np.sum(p * np.log(p)))
 
 def solve_static_network_with_survival(
-    model="GLV", N=20, p_link=0.25, c=1.0, seed=42, T=100.0, r_min=0.1, r_max=1.0, survival_threshold=1e-6
+    model="GLV", N=20, p_link=0.25, c=1.0, seed=42, T=100.0, r_min=0.1, r_max=1.0, survival_threshold=1e-6, alpha_scale=1.0, beta_scale=50
 ):
     """
     So;ves the dynamical system for a random network for a seed and link probability
@@ -118,9 +108,11 @@ def solve_static_network_with_survival(
     y0 = normalize_population(rng.random(N))
 
     # Calculate Alpha and Beta exactly
-    Alpha = A.copy()  # alpha_ij = 0 or 1 depending on network architecture
-    B = Alpha * (N / (2.0 * c))  # beta_ij = alpha_ij * (S / 2c)
-    #B = Alpha
+    Alpha = A.copy()
+    Alpha[A != 0] = alpha_scale
+    
+    #B = Alpha * (N / (2.0 * c))  # beta_ij = alpha_ij * (S / 2c)
+    B = Alpha * beta_scale
 
     if model == "GLV":
         rhs = lambda t, y: rhs_static_network(t, y, "GLV", A, r, B=B, c=c)
@@ -161,11 +153,26 @@ def solve_static_network_with_survival(
 # ---------------------------------------------------------
 
 def run_simulation_task(args):
-    model, N, p_link, c, seed, T, threshold, r_min, r_max = args
+    """
+    Runs the simulation for the given model and its parameters.
+    Helps in parallel multi thread processing. 
+    Takes a list of arguments which include the following in order,
+    the model you are solving for ("GLV" for SRD and "bounded" for RRD)
+    N: number of species in the network
+    p_link: The connectance value, or the link probability
+    c: Carrying capacity value 
+    seed: seed used to generate this specific run
+    T: Final time for integrator 
+    threshold: Existence threshold beyond which we consider a species to be existing
+    r_min: the minimum of the uniform distribution for sampling intinsic growth rate
+    r_max: the maximum of the same uniform distribution
+    """
+    model, N, p_link, c, seed, T, threshold, r_min, r_max, beta_scale, alpha_scale = args
     try:
         res = solve_static_network_with_survival(
             model=model, N=N, p_link=p_link, c=c, seed=seed, T=T, 
-            survival_threshold=threshold, r_min=r_min, r_max=r_max
+            survival_threshold=threshold, r_min=r_min, r_max=r_max,
+            alpha_scale = alpha_scale , beta_scale=beta_scale
         )
         y_final = res["y_final"]
         r = res["r"]
@@ -179,7 +186,6 @@ def run_simulation_task(args):
             "p_link": p_link,
             "seed": seed,
             "survivors": int(np.sum(survivors_mask)),
-            "diversity": safe_effective_diversity(y_final, threshold=threshold),
             "mean_r_survivors": float(np.mean(surviving_r)) if len(surviving_r) > 0 else 0.0,
             "survivors_mask": str(survivors_mask.tolist()),
             "r_list": str(r.tolist()) # Saves exact array for detailed analysis
@@ -189,21 +195,36 @@ def run_simulation_task(args):
         return None
 
 if __name__ == '__main__':
-    # Sweep Parameters
-    p_values = np.linspace(0, 1.0, 101)
-    realizations_per_p = 50
-    survival_threshold = 1e-4
+    ####################################################
+    # Sweep Parameters (EDIT THESE FOR RUNNING SIM)
+    ######################################################
+    p_values = np.linspace(0, 1.0, 101) # 101 values of p including 0
+    realizations_per_p = 50 # 50 networks generated for each p value
+    survival_threshold = 1e-4 # threshold for exiitence
     N = 100
     T = 500.0
     c = 1.0
     r_min = 0.01
     r_max = 1.0
 
-    csv_filename = "simulation_results_full_withallspecies.csv"
+    ###########################################################
+    alpha_scale=1.0
+    beta_scale = N / (2 * c)
+    ###########################################################
+    #csv_filename = "simulation_results_full_withallspecies.csv"
+    
     fieldnames = [
-        "model", "p_link", "seed", "survivors", "diversity", 
+        "model", "p_link", "seed", "survivors",  
         "mean_r_survivors", "survivors_mask", "r_list"
     ]
+
+    output_stem = (
+                f"N{N}_T{T:g}_c{c:g}_r{r_min:g}-{r_max:g}_"
+                f"threshold{survival_threshold:g}_reps{realizations_per_p}_"
+                f"p{p_values[0]:g}-{p_values[-1]:g}_pcount{len(p_values)}_"
+                f"betascale_{beta_scale}_alphascale_{alpha_scale}"
+            )
+    csv_filename = f"simulation_results_full_withallspecies_{output_stem}.csv"
 
     # Initialize CSV
     with open(csv_filename, mode='w', newline='') as f:
@@ -215,7 +236,7 @@ if __name__ == '__main__':
     for model in ["GLV", "Bounded"]:
         for p_link in p_values:
             for seed_offset in range(realizations_per_p):
-                tasks.append((model, N, p_link, c, 42 + seed_offset, T, survival_threshold, r_min, r_max))
+                tasks.append((model, N, p_link, c, 42 + seed_offset, T, survival_threshold, r_min, r_max, alpha_scale, beta_scale))
 
     print(f"Total simulations to run: {len(tasks)}")
     
@@ -263,20 +284,6 @@ if __name__ == '__main__':
     ax.grid(alpha=0.3)
     ax.legend()
     plt.tight_layout()
-    plt.savefig(f"figures/Diversity_{N}_{c}_small.png")    
+    plt.savefig(f"figures/Diversity_{output_stem}.png")    
     plt.show()
 
-    fig, ax = plt.subplots(figsize=(8, 5))
-    for model_name, grp in sweep_summary.groupby("model"):
-        ax.errorbar(
-            grp["p_link"], grp["mean_diversity"], yerr=grp["sem_diversity"],
-            fmt='o-', capsize=5, lw=2, label=model_name,
-        )
-    ax.set_xlabel("Wiring probability p_link")
-    ax.set_ylabel("Mean effective diversity")
-    ax.set_title(f"Mean diversity vs p_link across {realizations_per_p} networks per p")
-    ax.grid(alpha=0.3)
-    ax.legend()
-    plt.tight_layout()
-    plt.savefig(f"figures/EffectiveDiversity_{N}_{c}_small.png")
-    plt.show()
