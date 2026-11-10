@@ -19,4 +19,8 @@ The `csv`, `concurrent.futures`, and `multiprocessing` modules are included with
 
 ## Run the model
 
-Edit the parameters defined in the code to save the result. It outputs a CSV file with diversity, seed and other values for analysis. 
+Edit the parameters defined in the code to save the result. It outputs a CSV file with diversity, seed and other values for analysis and saves it in the root directory.
+
+## Publication figures
+
+Publication figures are made using the code in the jupyter notebook `publication_figures.ipynb`. It uses CSV files saved in `output/publication`. If you wish to point to new data collected using your own simulations, please rename the files appropriately. Do not delete `output/publication` directory. 
