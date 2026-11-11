@@ -5,7 +5,7 @@ Code for the paper titled  *Diversity in Well-Stirred Random Replicator Networks
 `multicoremodel_saving.py` performs the simulations and create the data for the parameters defined in the file
 
 ## Setup
-
+    
 Create and activate a virtual environment, then install the required packages:
 
 ```bash

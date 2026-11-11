@@ -202,7 +202,7 @@ if __name__ == '__main__':
     realizations_per_p = 50 # 50 networks generated for each p value
     survival_threshold = 1e-4 # threshold for exiitence
     N = 100
-    T = 500.0
+    T = 2000.0
     c = 1.0
     r_min = 0.01
     r_max = 1.0
@@ -236,7 +236,7 @@ if __name__ == '__main__':
     for model in ["GLV", "Bounded"]:
         for p_link in p_values:
             for seed_offset in range(realizations_per_p):
-                tasks.append((model, N, p_link, c, 42 + seed_offset, T, survival_threshold, r_min, r_max, alpha_scale, beta_scale))
+                tasks.append((model, N, p_link, c, 42 + seed_offset, T, survival_threshold, r_min, r_max, beta_scale, alpha_scale))
 
     print(f"Total simulations to run: {len(tasks)}")
     
@@ -259,14 +259,12 @@ if __name__ == '__main__':
 
     print("\nSweep Complete. All data saved.")
     
-    # Load and aggregate data for plotting
+    #Load and aggregate data for plotting
     df_raw = pd.read_csv(csv_filename)
     
     sweep_summary = df_raw.groupby(["model", "p_link"]).agg(
         mean_survivors=('survivors', 'mean'),
         sem_survivors=('survivors', lambda x: x.sem(ddof=1) if len(x) > 1 else 0.0),
-        mean_diversity=('diversity', 'mean'),
-        sem_diversity=('diversity', lambda x: x.sem(ddof=1) if len(x) > 1 else 0.0)
     ).reset_index()
 
     print("\nPlotting Results...")
@@ -286,4 +284,3 @@ if __name__ == '__main__':
     plt.tight_layout()
     plt.savefig(f"figures/Diversity_{output_stem}.png")    
     plt.show()
-
