@@ -12,7 +12,7 @@ Create and activate a virtual environment, then install the required packages:
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install numpy pandas matplotlib scipy
+python -m pip install -r requirements.txt
 ```
 
 The `csv`, `concurrent.futures`, and `multiprocessing` modules are included with Python and do not need to be installed separately.
